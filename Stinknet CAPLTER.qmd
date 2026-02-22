@@ -1,0 +1,361 @@
+---
+title: "Stinknet Research - CAPLTER"
+---
+
+## Stinknet - CAPLTER
+
+Central Arizona Phoenix Long-Term Ecological Research, <https://globalfutures.asu.edu/caplter/>
+
+Purpose: Find the microclimatic and chemical impacts on the growth of stinknet in the Phoenix metropolitan area.
+
+"ammonT","ammonB", "nitrT","nitrB", "phosT","phosB", "pH", "conduct", "bulkdens","ocarbT", "ocarbB", "ONCPIL", "clay","sand" (out of 100)
+
+Organic Carbon, pH - AA, Conductivity - AB \>1 is really salty, Bulk Density - AG,
+
+<https://uw.pressbooks.pub/appliedmultivariatestatistics/chapter/anosim/>
+
+```{r}
+### Libraries and data cleaning ###
+
+#Libraries
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(janitor)
+library(tidyr)
+library(vegan)
+
+#dataset
+data <- read_excel("/Users/elise/OneDrive/Documents/Desktop/Global Futures research/Cleaned_Data.xlsx")
+#View(data) 
+#str(df)
+
+data[c("cnT","cnB")]<-sapply(data[c("cnT","cnB")],as.numeric)
+data[data<0] <- 0
+## round numbers in the columns clay-phosB
+df <- data %>% mutate(across(where(is.numeric), round, 3))
+
+## remove empty rows
+df <- na.omit(df)
+#head(df)
+
+```
+
+```{r}
+## Filter data based on Stinknet="TRUE" (sn_true)
+
+#df <- df %>% mutate(T_ONCPIL = (df[df$ONCPIL == "TRUE", ])
+#head(df)
+##or turn into seperate column
+
+df_true <- df[df$ONCPIL == "TRUE", ]
+df_false <- df[df$ONCPIL == "FALSE", ]
+```
+
+```{r}
+#average Amounts of nutrients in the soils where Sinknet is found
+
+sn_nutrient <- df_true[,c("ammonT","ammonB",
+                   "nitrT","nitrB",
+                   "phosT","phosB")]
+nutrient_averages <- colMeans(sn_nutrient)
+print(nutrient_averages,3)
+```
+
+```{r}
+## Contigency table of urban and stinknet ##
+snur_df = data.frame(df$urban,df$ONCPIL)
+snur_df = table(df$urban,df$ONCPIL) 
+                
+print(snur_df) #Where Urban: 0/1 and Stinknet: T/F
+
+## chi squared test
+print(chisq.test(snur_df))
+
+# p-value: is over 0.05 (NH) stinknet rate is independent from the rate of urbanization in the dataset
+# x-squared: difference between expected count and true count  if NH is TRUE
+##bigger number means larger distance between NH and observed values
+# df: degrees of freedom, critical value
+
+####
+
+# mosiac plot spread of stinknet presence and status of urban scenery 
+ggplot(df, aes(x = urban, fill = ONCPIL)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Stinknet occurences in Urban/Non Urban areas",
+       x = "Urban 0/1",
+       y = "Count",
+       fill = "Stinknet")
+```
+
+```{r}
+sndf <-df[,c("ammonT","ammonB", "nitrT","nitrB", "phosT","phosB", "pH",
+            "conduct", "bulkdens","ocarbT", "ocarbB", "ONCPIL", "clay","sand")]
+
+# create a dataset
+#specie <- c(rep("sorgho" , 3) , rep("poacee" , 3) , rep("banana" , 3) , rep("triticum" , 3) )
+stinknet <-sndf$ONCPIL 
+condition <- rep(c("ammonT","ammonB", "nitrT","nitrB", "phosT","phosB") , 6)
+value <- abs(rnorm(12 , 0 , 15))
+data <- data.frame(stinknet,condition,value)
+ 
+# Grouped
+ggplot(sndf, aes(fill=condition, y=value, x=stinknet)) + 
+    geom_bar(position="dodge", stat="identity")
+#sndf[sndf$ONCPIL %in% c('TRUE', 'FALSE'), ]
+
+
+#data frames preventing barplot creation ask Dr.dixit or Dr.Cole
+```
+
+```{r}
+
+#while stinknet is present
+
+df_true <- df_true[,c("ammonT","ammonB",
+                   "nitrT","nitrB",
+                   "phosT","phosB","ocarbT", "ocarbB")]
+nutrient_averages <- colMeans(df_true)
+print(nutrient_averages,3)
+
+```
+
+```{r}
+
+
+#while Stinknet is NOT present
+df_false <- df_false[,c("ammonT","ammonB",
+                   "nitrT","nitrB",
+                   "phosT","phosB","ocarbT", "ocarbB")]
+nutrient_averages <- colMeans(df_false)
+print(nutrient_averages,3)
+
+```
+
+```{}
+```
+
+```{r}
+#-------------------NMDS-----------------------------------------------
+
+#create dataset:
+sndf <-df[,c("ammonT","ammonB", "nitrT","nitrB", "phosT","phosB", "pH",
+            "conduct", "bulkdens","ocarbT", "ocarbB", "ONCPIL", "clay","sand")]
+
+
+#In the structure of [c(rows),c(columns)] wanted in the dataset.
+
+#COLUMNS: such that the dataset includes only the columns with the needed metadata 
+##(treatments, sites, etc.) and the actual species being analyzed.
+
+
+
+#Then break into metadata and species data (AFTER remove rows/NAs):
+SN<-sndf[,"ONCPIL"] #stinknet t/f
+
+SOILSPECIE <-sndf[,c("clay","sand")] #different chemistry (soil)
+
+
+
+#run NMDS:
+
+Ord1<-metaMDS(SOILSPECIE, wascores=TRUE, k=3) #relationship between specie and site
+Ord1
+
+#And record stress from results.
+#wascores designates to use the weighted average for species scores.
+
+#Can specify the number of dimensions with k to get the stress to an acceptable level. Can remove that part of the command if don't need to specify.
+
+
+
+#Plot the NMDS in R: 
+
+library(ggplot2)
+
+plot(Ord1)
+
+#colfactorn<-factor(META$Treat)
+colfactorn<-factor(SN$ONCPIL)  ##ask about this, create two coulumns? one for t and f?
+
+#Change names in the code above for the name of the metadata set and the treatment of interest to color the points.
+
+points(Ord1, display="sites",cex=1, pch=16, col=c(1,4,3,2)[colfactorn])
+
+text(Ord1, display="Soil Type", cex=1)
+
+ordiellipse(Ord1, colfactorn, col=c(1,4,3,2), kind="ehull", lwd=3)
+
+legend(x="topleft", legend=levels(colfactorn), col=c(1,4,3,2), pch=16)
+
+
+
+#Extract scores to plot in Excel:
+
+print(scores(SoilOrd1, display="sites"))
+
+print(scores(SoilOrd1, display="species"))
+
+
+
+#Running post hoc pairwise comparisons:
+
+#Turn site scores into a dataset:
+
+MDS1 = Ord1$points[,1]
+
+MDS2 = Ord1$points[,2]
+
+Ord1XY = data.frame(MDS1 = MDS1, MDS2 = MDS2)
+
+print(Ord1XY)
+
+
+
+#Choose post hoc test of interest:
+
+#Change names in the code for the name of the metadata set (META) and the treatment (Treat) of interest.
+
+#ANOSIM:
+
+#summary(anosim(Ord1XY, META$Treat1))
+summary(anosim(Ord1XY, SN$ONCPIL))
+
+#or PERMANOVA:
+
+#print(adonis(Ord1XY~Treat1*Treat2, META))
+print(adonis2(Ord1XY~ONCPIL, SN))
+
+#with post hoc pairwise PERMANOVA if a treatment is significant (have to do each treatment separately):
+
+library(RVAideMemoire)
+
+pairwise.perm.manova(DistRESULTS, META$Treat1)
+
+pairwise.perm.manova(DistRESULTS, META$Treat2)
+
+
+
+#----------Distance matrix instead of NMDS of raw data--------------------
+
+
+
+#Create distance matrix:
+
+DistRESULTS<-vegdist(SPECIES)
+
+
+
+#And then run PERMANOVA on it:
+
+print(adonis(DistRESULTS~Treat1*Treat2, META))
+
+#Followed by pairwise comparisons of treatment levels if significant (have to do each treatment separately):
+
+library(RVAideMemoire)
+
+pairwise.perm.manova(DistRESULTS, META$Treat1) 
+
+pairwise.perm.manova(DistRESULTS, META$Treat2) 
+
+#ord ellipse
+```
+
+```{r}
+### Vegan and NMDS ###
+
+#create dataset:
+soil_df <- read.table("/Users/elise/OneDrive/Documents/Desktop/Global Futures research/soil_df.txt")
+META <-df[,c("ONCPIL", "broad_classes")]
+head(META)
+#create two df: one that has all of the soil chemistry without ONCPIL  Another that just has ONCPIL.
+
+#In the structure of [c(rows),c(columns)] wanted in the dataset.
+###  Run NMDS:  ###
+Ord1<-metaMDS(soil_df, wascores=TRUE, k=3) #relationship between specie and site
+Ord1
+
+print(scores(Ord1, display="sites"))
+
+#FROM BECKY: You should then be able to run Ord1<-metaMDS(soildf, wascores=TRUE,k=3)
+
+
+#write.csv(soil_df, 'C:\\Users\\elise\\OneDrive\\Documents\\Desktop\\Global Futures research\\soil_df.csv')
+```
+
+```{r}
+
+#try scatterplots.
+
+### Plot the NMDS in R: ###
+
+library(ggplot2)
+
+plot(Ord1)
+colfactorn<-factor(META$ONCPIL)
+points(Ord1, display="sites",cex=1, pch=16, col=c(1,4,3,2)[colfactorn])
+text(Ord1, display="species", cex=1)
+ordiellipse(Ord1, colfactorn, col=c(1,4,3,2), kind="ehull", lwd=3)
+legend(x="topleft", legend=levels(colfactorn), col=c(1,4,3,2), pch=16)
+  ##ask about this, create two coulumns? one for t and f?
+
+#treatment is "soil different with/without stinknet"
+#Change names in the code above for the name of the metadata set 
+##and the treatment of interest to color the points.
+
+#Running post hoc pairwise comparisons:
+
+  #Turn site scores into a dataset:
+
+MDS1 = Ord1$points[,1]
+
+MDS2 = Ord1$points[,2]
+
+Ord1XY = data.frame(MDS1 = MDS1, MDS2 = MDS2)
+
+print(Ord1XY)
+```
+
+```{r}
+
+#META_true <- META[META$ONCPIL == "TRUE", ]
+#META_false <- META[META$ONCPIL == "FALSE", ]
+#ord1xy is from the species score (soil), treatment is oncpil
+  
+
+###   ANOSIM:  ###
+summary(anosim(Ord1XY, META$ONCPIL == "TRUE"))
+
+###  or PERMANOVA: ###
+print(adonis2(Ord1XY~META$ONCPIL, META))
+print(adonis2(Ord1XY~META$ONCPIL*META$broad_classes, META))
+      #with post hoc pairwise PERMANOVA if a treatment is significant 
+      ## (have to do each treatment separately):
+
+library(RVAideMemoire)
+
+pairwise.perm.manova(DistRESULTS, META$ONCPIL)
+pairwise.perm.manova(DistRESULTS, META$broad_classes)
+
+```
+
+```{r}
+
+#----------Distance matrix --------------------
+#Create distance matrix:
+
+DistRESULTS<-vegdist(soil_df)
+
+#And then run PERMANOVA on it:
+
+print(adonis2(DistRESULTS~META$ONCPIL, META))
+
+#Followed by pairwise comparisons of treatment levels if significant 
+##(have to do each treatment separately):
+
+library(RVAideMemoire)
+pairwise.perm.manova(DistRESULTS, META$ONCPIL) 
+
+
+```
